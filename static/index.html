@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>식품영양성분 검색</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>식품영양성분 데이터베이스</h1>
+            <p class="subtitle">식품의 영양 정보를 검색하고 확인해보세요</p>
+        </header>
+
+        <div class="search-container">
+            <div class="search-box">
+                <input type="text" id="search-input" placeholder="식품명을 입력하세요 (예: 사과, 우유)">
+                <button id="search-button">검색</button>
+            </div>
+            <div class="filter-options">
+                <div class="filter-group">
+                    <label for="year-filter">연구 연도:</label>
+                    <select id="year-filter">
+                        <option value="">전체</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="maker-filter">제조사:</label>
+                    <input type="text" id="maker-filter" placeholder="제조사명">
+                </div>
+            </div>
+        </div>
+
+        <div class="results-container">
+            <div class="results-info">
+                <p id="results-count">검색 결과: <span>0</span>개</p>
+                <div class="pagination">
+                    <button id="prev-page" disabled>이전</button>
+                    <span id="page-info">페이지: 1</span>
+                    <button id="next-page" disabled>다음</button>
+                </div>
+            </div>
+            <div id="results-list" class="results-list"></div>
+            <div id="loading" class="loading">
+                <div class="spinner"></div>
+                <p>데이터를 불러오는 중...</p>
+            </div>
+            <div id="no-results" class="no-results hidden">
+                <p>검색 결과가 없습니다.</p>
+            </div>
+        </div>
+
+        <div id="detail-modal" class="modal hidden">
+            <div class="modal-content">
+                <span class="close-button">&times;</span>
+                <h2 id="food-detail-title"></h2>
+                <div class="food-info">
+                    <div class="food-meta">
+                        <p><strong>식품 코드:</strong> <span id="food-code"></span></p>
+                        <p><strong>연구 연도:</strong> <span id="food-year"></span></p>
+                        <p><strong>제조사:</strong> <span id="food-maker"></span></p>
+                        <p><strong>1회 제공량:</strong> <span id="food-serving"></span>g</p>
+                    </div>
+                    <div class="nutrition-table">
+                        <h3>영양 성분 (1회 제공량 기준)</h3>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>영양소</th>
+                                    <th>함량</th>
+                                </tr>
+                            </thead>
+                            <tbody id="nutrition-data">
+                                <!-- 영양 데이터가 여기에 추가됨 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <p>© 2025 식품영양성분 데이터베이스 API</p>
+    </footer>
+
+    <script src="/static/script.js"></script>
+</body>
+</html>

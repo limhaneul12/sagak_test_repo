@@ -1,6 +1,6 @@
 # Food Nutrition Database API 테스트 보고서
 
-## 실행 시간: 2025-05-17 23:33:24
+## 실행 시간: 2025-05-18 00:20:30
 
 ## 테스트 결과: ✅ 성공
 
@@ -13,7 +13,7 @@ cachedir: .pytest_cache
 rootdir: /Users/imhaneul/Documents/sagak_test_repo
 configfile: pytest.ini
 plugins: anyio-4.9.0, asyncio-0.26.0
-asyncio: mode=Mode.STRICT, asyncio_default_fixture_loop_scope=function, asyncio_default_test_loop_scope=function
+asyncio: mode=Mode.AUTO, asyncio_default_fixture_loop_scope=session, asyncio_default_test_loop_scope=function
 collecting ... collected 9 items
 
 app/tests/test_db.py::TestDatabase::test_database_connection PASSED      [ 11%]
@@ -32,7 +32,7 @@ app/tests/test_food_api.py::TestFoodAPI::test_delete_food PASSED         [100%]
     warnings.warn(DEPRECATION_MESSAGE, DeprecationWarning)
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-========================= 9 passed, 1 warning in 0.05s =========================
+========================= 9 passed, 1 warning in 0.07s =========================
 ```
 
 ## 환경 정보

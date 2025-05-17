@@ -5,6 +5,8 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 from app.api.api import api_router
 from app.db.database import async_engine, Base
@@ -46,8 +48,11 @@ app.add_middleware(
 # API 라우터 등록
 app.include_router(api_router, prefix=settings.API_PREFIX)
 
+# 정적 파일 마운트
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
 
 @app.get("/")
-async def root() -> dict[str, str]:
-    """루트 엔드포인트 - API 상태 확인"""
-    return {"message": "Food Nutrition Database API is running"}
+async def root():
+    """루트 엔드포인트 - 웹 인터페이스 제공"""
+    return FileResponse("static/index.html")
