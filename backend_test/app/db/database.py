@@ -2,11 +2,19 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-SQLALCHEMY_DATABASE_URL = "sqlite:///./food_nutrition.db"
+from app.core.config import settings
 
+# SQLAlchemy 엔진 초기화
 engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
+    settings.DATABASE_URL, connect_args=settings.DATABASE_CONNECT_ARGS
 )
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+# 데이터베이스 세션 설정
+SessionLocal = sessionmaker(
+    autocommit=settings.SQLALCHEMY_AUTOCOMMIT,
+    autoflush=settings.SQLALCHEMY_AUTOFLUSH,
+    bind=engine
+)
+
+# SQLAlchemy 모델 기본 클래스
 Base = declarative_base()
