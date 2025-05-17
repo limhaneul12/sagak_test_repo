@@ -152,8 +152,8 @@ async function searchFoods() {
         if (state.researchYear) params.append('research_year', state.researchYear);
         if (state.makerName) params.append('maker_name', state.makerName);
         
-        // API 호출
-        const response = await fetch(`${API_BASE_URL}/foods?${params.toString()}`);
+        // API 호출 - 라우터 경로와 일치하도록 끝에 슬래시 추가
+        const response = await fetch(`${API_BASE_URL}/foods/?${params.toString()}`);
         
         if (!response.ok) {
             throw new Error(`API 오류: ${response.status}`);
@@ -219,8 +219,8 @@ async function showFoodDetails(foodId) {
     showLoading(true);
     
     try {
-        // API 호출로 상세 정보 가져오기
-        const response = await fetch(`${API_BASE_URL}/foods/${foodId}`);
+        // 식품 상세 정보 API 호출 - 라우터 경로와 일치하도록 포맷 유지
+        const response = await fetch(`${API_BASE_URL}/foods/${foodId}/`);
         
         if (!response.ok) {
             throw new Error(`API 오류: ${response.status}`);
@@ -312,35 +312,4 @@ function showError(message) {
     alert(message);
 }
 
-// 디버깅 목적으로 더미 데이터 생성 함수 (실제 API 연동 시 삭제)
-function generateDummyData(count = 10) {
-    const dummyFoods = [];
-    const foodNames = ['사과', '바나나', '귤', '오렌지', '복숭아', '딸기', '포도', '수박', '참외', '키위', '망고'];
-    const makerNames = ['농심', '롯데', '해태', '오리온', 'CJ', '동원', '삼양', '풀무원', '곰표', '빙그레'];
-    
-    for (let i = 1; i <= count; i++) {
-        const randomFood = foodNames[Math.floor(Math.random() * foodNames.length)];
-        const randomMaker = makerNames[Math.floor(Math.random() * makerNames.length)];
-        const randomYear = 2020 + Math.floor(Math.random() * 6); // 2020~2025
-        
-        dummyFoods.push({
-            id: i,
-            food_cd: `F${String(i).padStart(6, '0')}`,
-            food_name: `${randomFood} ${i}`,
-            maker_name: randomMaker,
-            research_year: String(randomYear),
-            serving_size: Math.floor(Math.random() * 150) + 50, // 50~200g
-            calorie: Math.floor(Math.random() * 500) + 50, // 50~550 kcal
-            carbohydrate: Math.floor(Math.random() * 80) + 5, // 5~85g
-            protein: Math.floor(Math.random() * 30) + 1, // 1~31g
-            province: Math.floor(Math.random() * 20) + 1, // 1~21g
-            sugars: Math.floor(Math.random() * 30), // 0~30g
-            salt: Math.floor(Math.random() * 1000) + 10, // 10~1010mg
-            cholesterol: Math.floor(Math.random() * 100), // 0~100mg
-            saturated_fatty_acids: Math.floor(Math.random() * 10), // 0~10g
-            trans_fat: Math.random().toFixed(1) // 0.0~0.9g
-        });
-    }
-    
-    return dummyFoods;
-}
+

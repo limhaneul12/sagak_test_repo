@@ -365,15 +365,196 @@ def load_from_csv(csv_path: Path | str) -> pd.DataFrame | None:
         return None
 
 
+def get_sql_hash(sql_path: Path) -> str:
+    """
+    SQL 파일의 해시값을 계산합니다.
+    
+    Args:
+        sql_path: SQL 파일 경로
+        
+    Returns:
+        str: SQL 파일의 SHA-256 해시값
+    """
+    import hashlib
+    try:
+        with open(sql_path, 'rb') as f:
+            # 파일 내용으로 해시속성 계산 - 파일 변경을 확실히 감지하기 위해
+            file_hash = hashlib.sha256(f.read()).hexdigest()
+            return file_hash
+    except Exception as e:
+        print(f"Error calculating SQL file hash: {e}")
+        return ""
+
+
+def check_db_status(db_path: Path, sql_path: Path) -> tuple[bool, bool]:
+    """
+    데이터베이스와 SQL 파일의 상태를 확인합니다.
+
+    Returns:
+        tuple: (db_initialized, sql_changed)
+    """
+    db_initialized = False
+    sql_changed = False
+
+    # 1. SQL 파일 존재 여부
+    if not sql_path.exists():
+        print(f"[ERROR] SQL file not found at {sql_path}")
+        return db_initialized, sql_changed
+
+    # 2. DB 파일 존재 여부
+    if not db_path.exists():
+        print(f"[INFO] DB not found at {db_path}")
+        return db_initialized, sql_changed
+
+    # 3. SQL 해시 계산
+    current_sql_hash = get_sql_hash(sql_path)
+    if not current_sql_hash:
+        print("[ERROR] Failed to compute SQL hash. Assuming SQL changed.")
+        sql_changed = True
+
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+
+        # 테이블 존재 확인
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='foods'")
+        if cursor.fetchone():
+            print("[INFO] 'foods' table exists.")
+
+            # 데이터 개수 확인
+            cursor.execute("SELECT COUNT(*) FROM foods")
+            count = cursor.fetchone()[0]
+            if count > 0:
+                db_initialized = True
+                print(f"[INFO] Database has {count} records.")
+            else:
+                print("[INFO] 'foods' table is empty.")
+        else:
+            print("[WARN] 'foods' table does not exist.")
+            return db_initialized, True
+
+        # 메타 테이블과 해시 비교
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='meta'")
+        if cursor.fetchone():
+            cursor.execute("SELECT value FROM meta WHERE key = 'sql_hash' LIMIT 1")
+            result = cursor.fetchone()
+            if result:
+                stored_hash = result[0]
+                print(f"[DEBUG] Stored hash:  {stored_hash}")
+                print(f"[DEBUG] Current hash: {current_sql_hash}")
+                if current_sql_hash != stored_hash:
+                    print("[INFO] SQL file has changed.")
+                    sql_changed = True
+                else:
+                    print("[INFO] SQL file unchanged.")
+            else:
+                print("[WARN] No stored hash found. Assuming change.")
+                sql_changed = True
+        else:
+            print("[WARN] 'meta' table not found. Assuming SQL has changed.")
+            sql_changed = True
+
+        conn.close()
+    except Exception as e:
+        print(f"[ERROR] Failed to check DB status: {e}")
+        sql_changed = True
+
+    return db_initialized, sql_changed
+
+def create_meta_table(conn):
+    """
+    메타데이터 테이블을 생성합니다.
+    
+    Args:
+        conn: SQLite 데이터베이스 연결 객체
+    """
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS meta (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        )
+        """)
+        conn.commit()
+    except sqlite3.Error as e:
+        print(f"Error creating meta table: {e}")
+        conn.rollback()
+
+
+def update_meta_info(db_path: Path, sql_path: Path) -> None:
+    """
+    데이터베이스 메타정보를 업데이트합니다.
+    
+    Args:
+        db_path: 데이터베이스 파일 경로
+        sql_path: SQL 파일 경로
+    """
+    import time
+    conn = None
+    
+    try:
+        conn = sqlite3.connect(db_path)
+        create_meta_table(conn)
+        cursor = conn.cursor()
+        current_time = time.time()
+        
+        # 현재 SQL 해시값 계산
+        sql_hash = get_sql_hash(sql_path)
+        
+        # 메타데이터 저장/갱신
+        updates = [
+            ('last_update_time', str(current_time)),
+            ('sql_hash', sql_hash)
+        ]
+        
+        for key, value in updates:
+            cursor.execute("""
+            INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)
+            """, (key, value))
+        
+        conn.commit()
+        print(f"Updated database metadata:")
+        print(f"  - Timestamp: {current_time}")
+        print(f"  - SQL hash: {sql_hash[:8]}...")
+        
+    except sqlite3.Error as e:
+        print(f"Error updating meta info: {e}")
+        if conn and conn.in_transaction:
+            conn.rollback()
+    finally:
+        if conn:
+            conn.close()
+
+
 def main():
     # 파일 경로 설정
     data_dir = Path(__file__).parent / "data"
+    
     import_path = data_dir / "통합 식품영양성분DB_음식_20230715.xlsx"
     csv_path = data_dir / "processed_food_data.csv"
     db_path = data_dir / "food_nutrition.db"
     sql_path = data_dir / "insert_food_data.sql"
     
-    # 엑셀 파일 처리 및 CSV 생성
+    # 데이터베이스와 SQL 파일의 상태 확인
+    db_initialized, sql_changed = check_db_status(db_path, sql_path)
+    
+    # 데이터베이스가 초기화되어 있고 SQL 파일이 변경되지 않았으면 처리 건너뛰기
+    if db_initialized and not sql_changed:
+        print("Database already initialized and SQL file unchanged. Skipping data import.")
+        print("\n데이터 처리가 이미 완료되었습니다.")
+        print(f"1. CSV 파일: {csv_path}")
+        print(f"2. SQL 파일: {sql_path}")
+        print(f"3. SQLite DB: {db_path}")
+        return
+    
+    # 초기화되었지만 SQL 파일이 변경된 경우 메시지 출력
+    if db_initialized and sql_changed:
+        print("SQL file has changed since last database update. Applying changes...")
+    
+    # 최초 실행 또는 SQL 변경 감지 시 데이터 처리 수행
+    
+    # 엑셀 파일 처리 및 CSV 생성 (아직 없는 경우만)
     if not csv_path.exists():
         print("Processing Excel file...")
         process_food_data(import_path, csv_path)
@@ -384,13 +565,20 @@ def main():
         print("Failed to load CSV data. Exiting.")
         return
     
-    # SQL 파일 생성
-    create_sql_insert_file(df, sql_path)
+    # SQL 파일 생성 (이미 있더라도 다시 생성)
+    if sql_changed or not sql_path.exists():
+        print("Creating SQL insert file...")
+        create_sql_insert_file(df, sql_path)
     
-    # SQLite DB에 저장
-    save_to_sqlite(df, db_path)
+    # SQLite DB에 데이터 저장
+    success = save_to_sqlite(df, db_path)
     
-    print("\n데이터 처리가 완료되었습니다.")
+    # 성공적으로 저장되었으면 메타데이터 업데이트
+    if success:
+        update_meta_info(db_path, sql_path)
+    
+    status = "업데이트" if db_initialized else "초기화"
+    print(f"\n데이터 {status}가 완료되었습니다.")
     print(f"1. CSV 파일: {csv_path}")
     print(f"2. SQL 파일: {sql_path}")
     print(f"3. SQLite DB: {db_path}")

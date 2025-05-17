@@ -1,5 +1,4 @@
 """FastAPI 애플리케이션 엔트리 포인트"""
-import os
 import sys
 from contextlib import asynccontextmanager
 
@@ -10,10 +9,9 @@ from fastapi.responses import FileResponse
 
 from app.api.api import api_router
 from app.db.database import async_engine, Base
-from app.models import food as models
 from app.core.config import settings
 
-# ✅ lifespan 컨텍스트로 DB 테이블 생성 실행
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # 테스트 환경에서는 lifespan 로직 실행 안함
@@ -33,7 +31,8 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.APP_TITLE,
     version=settings.APP_VERSION,
-    lifespan=lifespan  # ✅ lifespan 등록
+    lifespan=lifespan, 
+    redirect_slashes=True 
 )
 
 # CORS 설정
