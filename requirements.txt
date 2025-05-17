@@ -6,3 +6,8 @@ openpyxl
 sqlalchemy
 python-multipart
 pandas
+aiosqlite
+pytest
+pytest_asyncio
+greenlet
+sqlalchemy[asyncio]
