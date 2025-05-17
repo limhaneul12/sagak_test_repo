@@ -1,0 +1,42 @@
+# Food Nutrition Database API 테스트 보고서
+
+## 실행 시간: 2025-05-17 23:33:24
+
+## 테스트 결과: ✅ 성공
+
+## 상세 테스트 결과
+
+```
+============================= test session starts ==============================
+platform darwin -- Python 3.12.10, pytest-8.3.5, pluggy-1.6.0 -- /Users/imhaneul/Documents/sagak_test_repo/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/imhaneul/Documents/sagak_test_repo
+configfile: pytest.ini
+plugins: anyio-4.9.0, asyncio-0.26.0
+asyncio: mode=Mode.STRICT, asyncio_default_fixture_loop_scope=function, asyncio_default_test_loop_scope=function
+collecting ... collected 9 items
+
+app/tests/test_db.py::TestDatabase::test_database_connection PASSED      [ 11%]
+app/tests/test_db.py::TestDatabase::test_food_schema PASSED              [ 22%]
+app/tests/test_db.py::TestDatabase::test_sqlite_direct_connection PASSED [ 33%]
+app/tests/test_food_api.py::TestFoodAPI::test_create_food PASSED         [ 44%]
+app/tests/test_food_api.py::TestFoodAPI::test_get_food PASSED            [ 55%]
+app/tests/test_food_api.py::TestFoodAPI::test_get_nonexistent_food PASSED [ 66%]
+app/tests/test_food_api.py::TestFoodAPI::test_search_foods PASSED        [ 77%]
+app/tests/test_food_api.py::TestFoodAPI::test_update_food PASSED         [ 88%]
+app/tests/test_food_api.py::TestFoodAPI::test_delete_food PASSED         [100%]
+
+=============================== warnings summary ===============================
+.venv/lib/python3.12/site-packages/pydantic/_internal/_config.py:323
+  /Users/imhaneul/Documents/sagak_test_repo/.venv/lib/python3.12/site-packages/pydantic/_internal/_config.py:323: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    warnings.warn(DEPRECATION_MESSAGE, DeprecationWarning)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+========================= 9 passed, 1 warning in 0.05s =========================
+```
+
+## 환경 정보
+
+- Python 버전: 3.12.10
+- 운영체제: darwin
+- 데이터베이스: data/food_nutrition.db (실제 DB 사용)
