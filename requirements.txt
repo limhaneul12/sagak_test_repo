@@ -1,8 +1,2 @@
-fastapi
-uvicorn
-pydantic
-pydantic-settings
-openpyxl
-sqlalchemy
-python-multipart
-pandas
+pytest
+pytest-benchmark

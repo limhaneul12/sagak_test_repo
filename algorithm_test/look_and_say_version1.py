@@ -43,7 +43,6 @@ value : 1, 1, 1, 2, 2, 1
 4. 갱신
 """
 
-start_value: int = int(input("숫자를 입력하세요: "))
 
 
 def look_and_say(n: int) -> str:
@@ -101,5 +100,7 @@ def get_middle_two_digits(s: str) -> str:
     return s[middle_index - 1 : middle_index + 1]
 
 
-data = look_and_say(start_value)[:]
-print(get_middle_two_digits(data))
+if __name__ == "__main__":
+    start_value: int = int(input("숫자를 입력하세요: "))
+    data = look_and_say(start_value)
+    print(get_middle_two_digits(data))
