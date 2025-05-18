@@ -11,7 +11,7 @@
 - **Level 2: HTTP 동사(HTTP Verbs)** - HTTP 메서드와 상태 코드 적절히 활용
 - **Level 3: 하이퍼미디어 컨트롤(HATEOAS)** - 응답에 다음 가능한 작업에 대한 링크 포함
 
-본 API는 **Level 2**를 구현하여 명확한 리소스 구조와 HTTP 메서드의 의미론적 사용을 통해 REST 원칙을 충실히 따르고 있습니다.
+본 API는 **Level 3**까지 구현하여 명확한 리소스 구조와 HTTP 메서드의 의미론적 사용, 그리고 HATEOAS 페이지네이션 링크를 통해 REST 원칙을 충실히 따르고 있습니다.
 
 ### 1.2 채택한 RESTful 원칙
 
@@ -62,19 +62,25 @@ Content-Type: application/json
 
 ### 3.2 페이지네이션 및 필터링
 
-컬렉션 API는 페이지네이션과 필터링을 쿼리 파라미터로 지원합니다:
+컬렉션 API는 HATEOAS 링크 기반 페이지네이션과 다양한 필터링을 쿼리 파라미터로 지원합니다:
 
 ```
-/foods?skip=0&limit=100&food_name=쌀
+/foods?page=1&size=20&food_name=쌀
 ```
 
 주요 쿼리 파라미터:
-- `skip`: 건너뛸 항목 수 (기본값: 0)
-- `limit`: 반환할 최대 항목 수 (기본값: 100)
+- `page`: 페이지 번호 (1부터 시작, 기본값: 1)
+- `size`: 페이지당 항목 수 (기본값: 20)
 - `food_name`: 식품명 필터 (부분 일치)
 - `research_year`: 조사 연도 필터
 - `maker_name`: 제조사 필터 (부분 일치)
 - `food_code`: 식품 코드 필터 (정확 일치)
+
+페이지네이션 응답은 다음과 같은 HATEOAS 링크를 포함합니다:
+- `first`: 첫 페이지 링크
+- `prev`: 이전 페이지 링크 (첫 페이지가 아닌 경우)
+- `next`: 다음 페이지 링크 (마지막 페이지가 아닌 경우)
+- `last`: 마지막 페이지 링크
 
 ### 3.3 상태 코드 사용
 
@@ -92,13 +98,14 @@ Content-Type: application/json
 
 ## 4. API 사용 예시
 
-### 4.1 식품 목록 조회
+### 4.1 식품 목록 조회 (HATEOAS 페이지네이션)
 
 **요청:**
 ```bash
 curl --get \
   --data-urlencode "food_name=쌀" \
-  --data-urlencode "limit=5" \
+  --data-urlencode "page=1" \
+  --data-urlencode "size=5" \
   -H "accept: application/json" \
   http://localhost:8000/api/v1/foods/
 ```
@@ -129,8 +136,13 @@ curl --get \
     // ... 추가 항목
   ],
   "total": 150,
-  "skip": 0,
-  "limit": 5
+  "page": 1,
+  "size": 5,
+  "links": {
+    "first": "http://localhost:8000/api/v1/foods/?page=1&size=5&food_name=쌀",
+    "next": "http://localhost:8000/api/v1/foods/?page=2&size=5&food_name=쌀",
+    "last": "http://localhost:8000/api/v1/foods/?page=30&size=5&food_name=쌀"
+  }
 }
 ```
 
@@ -259,10 +271,47 @@ curl -X DELETE "http://localhost:8000/api/v1/foods/1" -H "accept: application/js
 **응답: (204 No Content)**
 *응답 본문 없음*
 
-## 5. 향후 발전 방향: Level 3 - HATEOAS 구현
+## 5. 현재 구현: Level 3 - HATEOAS
 
-향후 API를 Richardson 성숙도 모델의 Level 3로 발전시키기 위해 다음과 같은 HATEOAS(Hypermedia As The Engine Of Application State) 구현을 고려할 수 있습니다:
+현재 API는 Richardson 성숙도 모델의 Level 3 (HATEOAS - Hypermedia As The Engine Of Application State)를 구현하여 응답에 하이퍼미디어 컨트롤을 포함하고 있습니다.
 
+### 5.1 HATEOAS 페이지네이션 구현
+
+현재 구현된 페이지네이션 응답은 다음과 같이 HATEOAS 링크를 포함합니다:
+
+```json
+{
+  "items": [ ... ],
+  "total": 150,
+  "page": 1,
+  "size": 20,
+  "links": {
+    "first": "http://example.com/api/v1/foods/?page=1&size=20",
+    "next": "http://example.com/api/v1/foods/?page=2&size=20",
+    "last": "http://example.com/api/v1/foods/?page=8&size=20"
+  }
+}
+```
+
+이러한 링크를 통해 클라이언트는:
+- 현재 페이지가 어디인지 인식할 수 있음
+- 첫 페이지, 다음 페이지, 마지막 페이지로 쉽게 이동 가능
+- 이전 페이지가 있는 경우 이전 페이지로 이동 가능
+
+### 5.2 HATEOAS의 이점
+
+현재 구현된 HATEOAS는 다음과 같은 이점을 제공합니다:
+
+- **클라이언트 독립성**: 클라이언트가 URL을 하드코딩할 필요 없이 서버가 제공하는 링크를 따를 수 있음
+- **API 유연성**: 서버 측 URL 구조가 변경되어도 클라이언트 코드 수정 불필요
+- **직관적인 탐색**: 클라이언트가 API를 탐색하기 쉬움
+- **자기 설명적**: API가 가능한 다음 액션을 설명함
+
+### 5.3 향후 HATEOAS 확장 방향
+
+향후 HATEOAS를 더 확장하여 다음과 같은 기능을 추가할 수 있습니다:
+
+- 개별 리소스에 대한 관련 작업 링크 추가
 ```json
 {
   "id": 1,
@@ -270,31 +319,13 @@ curl -X DELETE "http://localhost:8000/api/v1/foods/1" -H "accept: application/js
   "links": [
     { "rel": "self", "href": "/api/v1/foods/1", "method": "GET" },
     { "rel": "update", "href": "/api/v1/foods/1", "method": "PUT" },
-    { "rel": "delete", "href": "/api/v1/foods/1", "method": "DELETE" },
-    { "rel": "collection", "href": "/api/v1/foods", "method": "GET" }
+    { "rel": "delete", "href": "/api/v1/foods/1", "method": "DELETE" }
   ],
   // ... 기타 속성
 }
 ```
-
-컬렉션 응답에서는 다음과 같이 페이지네이션 링크를 포함할 수 있습니다:
-
-```json
-{
-  "items": [ ... ],
-  "links": [
-    { "rel": "self", "href": "/api/v1/foods?skip=0&limit=100", "method": "GET" },
-    { "rel": "next", "href": "/api/v1/foods?skip=100&limit=100", "method": "GET" },
-    { "rel": "create", "href": "/api/v1/foods", "method": "POST" }
-  ],
-  "total": 150
-}
-```
-
-HATEOAS 구현의 이점:
-- API가 진화해도 클라이언트 코드 변경 최소화
-- 클라이언트가 API를 보다 쉽게 탐색 가능
-- 새로운 기능이나 관계를 쉽게 추가 가능
+- 관련 리소스에 대한 링크 추가
+- API 문서화 링크 제공
 
 ## 6. 참고 문헌
 
