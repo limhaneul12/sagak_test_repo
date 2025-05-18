@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from fastapi_pagination import add_pagination
 
 from app.api.api import api_router
 from app.db.database import async_engine, Base
@@ -46,6 +47,9 @@ app.add_middleware(
 
 # API 라우터 등록
 app.include_router(api_router, prefix=settings.API_PREFIX)
+
+# 페이지네이션 설정 추가
+add_pagination(app)
 
 # 정적 파일 마운트
 app.mount("/static", StaticFiles(directory="static"), name="static")

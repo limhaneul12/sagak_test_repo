@@ -1,5 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from typing import Annotated
+from fastapi_pagination.links import Page as LinkPage
+from fastapi_pagination.ext.sqlalchemy import paginate
 
 from app.schemas import food as schemas
 from app.services.food import FoodService
@@ -25,29 +27,32 @@ async def create_food(
     return await food_service.create_food(food)
 
 
-@router.get("/", response_model=schemas.FoodSearchResponse)
+@router.get("/", response_model=LinkPage[schemas.Food])
 async def search_foods(
+    request: Request,
     food_service: Annotated[FoodService, Depends(get_food_service)],
     food_name: str | None = None,
     research_year: str | None = None,
     maker_name: str | None = None,
     food_code: str | None = None,
-    skip: int = 0,
-    limit: int = 100,
-) -> schemas.FoodSearchResponse:
-    """식품 검색 API - 다양한 조건으로 식품 데이터 검색 및 페이지네이션 제공
+    page: int = 1,  # 페이지 번호 파라미터 추가
+    size: int = 20,  # 페이지 크기 파라미터 추가
+) -> LinkPage[schemas.Food]:
+    """식품 검색 API - 다양한 조건으로 식품 데이터 검색 및 HATEOAS 링크 기반 페이지네이션 제공
     
     Args:
+        request: FastAPI 요청 객체
         food_service: 식품 서비스 계층(의존성 주입)
         food_name: (선택) 검색할 식품 이름 - 부분 일치 검색
         research_year: (선택) 연구 연도 기준 필터링
         maker_name: (선택) 제조사 이름 기준 필터링
         food_code: (선택) 식품 코드 기준 필터링
-        skip: 페이지네이션 - 건너뚰 레코드 수
-        limit: 페이지네이션 - 한 번에 가져올 최대 레코드 수
+      page: 페이지 번호 (1부터 시작)
+        size: 페이지당 항목 수
         
     Returns:
-        검색된 식품 목록과 총 개수가 포함된 응답 객체
+        HATEOAS 링크가 포함된 페이지네이션 응답
+        (이전/다음/첫/마지막 페이지 링크 자동 생성)
     """
     search_params = schemas.FoodSearchRequest(
         food_name=food_name,
@@ -55,8 +60,18 @@ async def search_foods(
         maker_name=maker_name,
         food_code=food_code,
     )
-    items, total = await food_service.search_foods(search_params, skip, limit)
-    return schemas.FoodSearchResponse(items=items, total=total)
+    skip: int = (page - 1) * size
+    
+    # 서비스 계층을 통해 데이터 가져오기
+    items, total = await food_service.search_foods(search_params, skip, size)
+    
+    # LinkPage 객체 생성 및 반환 (HATEOAS 링크 포함)
+    return LinkPage(
+        items=items,
+        total=total,
+        page=page,
+        size=size
+    )
 
 
 @router.get("/{food_id}", response_model=schemas.Food)

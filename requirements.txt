@@ -12,3 +12,4 @@ pytest_asyncio
 greenlet
 sqlalchemy[asyncio]
 locust
+fastapi-pagination

@@ -155,3 +155,4 @@ class FoodService:
         items = result.scalars().all()
 
         return items, total
+    
