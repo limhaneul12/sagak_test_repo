@@ -276,7 +276,11 @@ API는 다음과 같은 형식의 에러 응답을 반환합니다:
 
 ### cURL을 이용한 식품 목록 조회
 ```bash
-curl -X GET "http://localhost:8000/api/v1/foods/?food_name=쌀&limit=5" -H "accept: application/json"
+curl --get \
+  --data-urlencode "food_name=쌀" \
+  --data-urlencode "limit=5" \
+  -H "accept: application/json" \
+  http://localhost:8000/api/v1/foods/
 ```
 
 ### Python requests 라이브러리를 이용한 식품 생성
