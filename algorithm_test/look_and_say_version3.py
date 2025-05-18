@@ -52,14 +52,13 @@ def look_and_say_iterative(n: int) -> str:
     
     # 캐시에 없는 항들을 순차적으로 계산
     for i in range(2, n + 1):
-        if i not in cache:
-            prev = cache[i-1]
-            cache[i] = read_and_count(prev)
+        prev = cache[i-1]
+        cache[i] = read_and_count(prev)
     
     return cache[n]
 
 def get_middle_two_digits(s: str) -> str:
-    """문자열에서 가운데 두 자리를 반환합
+    """문자열에서 가운데 두 자리를 반환
 
     Args:
         s: 입력 문자열
