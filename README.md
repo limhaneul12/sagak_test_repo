@@ -78,7 +78,6 @@ cd sagak_test_repo
 2. **Poetry 환경 설정**
 
 ```bash
-poetry install
 poetry env use python3.12  # Python 버전 지정 (선택 사항)
 poetry env activate       # 가상환경 활성화
 cat requirements.txt | xargs poetry add
@@ -115,15 +114,17 @@ python main.py
 ```
 
 5. **테스트 실행**
+- 테스트를 실행하시면 테스트 결과가 etc/test_result.txt에 저장됩니다.
 
 ```bash
 python run_tests.py
+
 ```
 
 ### Docker 기준 실행
 
 ```bash
-docker-compose -up --build
+docker compose -up --build
 ```
 
 > **참고**: 최근 보안 취약점 해결을 위해 베이스 이미지를 `python:3.12-slim-bookworm`에서 
@@ -150,11 +151,12 @@ sagak_test_repo/
 ├── etc/               # 부가 문서
 ├── api_docs.md       # API 사용 가이드
 ├── import_data.py    # 데이터 삽입 스크립트
+├── locustfile.py     # 부하 테스트 스크립트
 ├── main.py           # 애플리케이션 엔트리포인트
+├── run_tests.py      # 테스트 실행 스크립트
 ├── test_docs.md      # 테스트 문서
 ├── pyproject.toml    # Poetry 설정 파일
 ├── pytest.ini        # pytest 설정
-├── run_tests.py      # 테스트 실행 스크립트
 ├── Dockerfile        # Docker 이미지 설정
 ├── docker-compose.yml # Docker 구성 파일
 └── README.md         # 프로젝트 설명

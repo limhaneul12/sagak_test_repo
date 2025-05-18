@@ -12,7 +12,7 @@ if project_root not in sys.path:
 
 def run_tests_and_generate_report():
     """테스트 실행 및 결과 보고서 생성"""
-    report_file = "test_result.txt"
+    report_file = "etc/test_result.txt"
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
     # 테스트 실행 환경에 경로 추가
