@@ -1,587 +1,182 @@
 import pandas as pd
-from pathlib import Path
-import numpy as np
 import sqlite3
-from typing import Optional
+import hashlib
+import logging
+from pathlib import Path
+from datetime import datetime
 
 
-def process_food_data(file_path: Path, output_csv_path: Path | str = "processed_food_data.csv"):
-    """
-    Excel 파일의 식품 영양 성분 데이터를 읽어서 정제하고 CSV 파일로 저장합니다.
-    
-    Args:
-        file_path: Excel 파일 경로 (Path 객체)
-        output_csv_path: 출력할 CSV 파일 경로 (Path 객체 또는 문자열)
-    """
-    # 엑셀 파일 읽기
-    print(f"Loading data from {file_path}...")
-    try:
-        df = pd.read_excel(file_path)
-        print(f"Successfully loaded Excel file with {len(df)} rows and {len(df.columns)} columns")
-        print("First few column names:", df.columns.tolist()[:10])  # 컬럼명 확인용 출력
-    except Exception as e:
-        print(f"Error reading Excel file: {e}")
-        return None
-    
-    # 십품 영양성분 데이터 분석 결과에 따른 열 이름 매핑
-    column_mapping = {
-        "NO": "id",
-        "식품코드": "food_cd",
-        "식품대분류": "group_name",
-        "식품명": "food_name",
-        "연도": "research_year",
-        "지역 / 제조사": "maker_name",
-        "성분표출처": "ref_name",
-        "1회제공량": "serving_size",
-        "에너지(㎉)": "calorie",
-        "탄수화물(g)": "carbohydrate",
-        "단백질(g)": "protein",
-        "지방(g)": "province",
-        "총당류(g)": "sugars",
-        "나트륨(㎎)": "salt",
-        "콜레스테롤(㎎)": "cholesterol",
-        "총 포화 지방산(g)": "saturated_fatty_acids",
-        "트랜스 지방산(g)": "trans_fat"
-    }
-    
-    # 데이터 프레임 열 이름 변경 및 카피 생성 후 작업
-    print("Mapping columns from original Excel file...")
-    
-    # 컬럼 매핑 전 원본 데이터 카피
-    df_copy = df.copy()
-    
-    # 매핑된 컬럼 확인
-    renamed_columns = {}
-    for korean_name, english_name in column_mapping.items():
-        if korean_name in df.columns:
-            df_copy = df_copy.rename(columns={korean_name: english_name})
-            renamed_columns[korean_name] = english_name
-            print(f"  - Mapped: '{korean_name}' -> '{english_name}'")
-    
-    # 매핑된 컬럼 수 확인
-    print(f"Successfully mapped {len(renamed_columns)} columns out of {len(column_mapping)} defined mappings")
-    
-    # 매핑되지 않은 필수 컬럼 확인
-    required_columns = ['id', 'food_cd', 'group_name', 'food_name', 'research_year', 'maker_name', 'ref_name', 
-                     'serving_size', 'calorie', 'carbohydrate', 'protein', 'province', 'sugars', 
-                     'salt', 'cholesterol', 'saturated_fatty_acids', 'trans_fat']
-    
-    missing_columns = [col for col in required_columns if col not in df_copy.columns]
-    if missing_columns:
-        print(f"Missing {len(missing_columns)} required columns: {', '.join(missing_columns)}")
-        for col in missing_columns:
-            print(f"  - Adding empty column: {col}")
-            df_copy[col] = np.nan
-    
-    # 데이터 정제 실행
-    print("Cleaning and processing data...")
-    
-    # '-' 값 NaN으로 변환 (수수로 표시된 없음 값)
-    for col in df_copy.columns:
-        if df_copy[col].dtype == 'object':
-            df_copy[col] = df_copy[col].replace('-', np.nan)
-    
-    # 데이터 타입 변환
-    numeric_columns = ['serving_size', 'calorie', 'carbohydrate', 'protein', 'province', 
-                     'sugars', 'salt', 'cholesterol', 'saturated_fatty_acids', 'trans_fat']
-    
-    string_columns = ['food_cd', 'group_name', 'food_name', 'maker_name', 'ref_name']
-    
-    # 연도는 문자열로 처리 (YYYY 형식 유지)
-    if 'research_year' in df_copy.columns:
-        df_copy['research_year'] = df_copy['research_year'].astype(str)
-    
-    # 수치형 컬럼 변환 및 결측치 0으로 처리
-    for col in numeric_columns:
-        if col in df_copy.columns:
-            df_copy[col] = pd.to_numeric(df_copy[col], errors='coerce').fillna(0)
-    
-    # 문자열 컬럼 결측치 빈 문자열로 처리
-    for col in string_columns:
-        if col in df_copy.columns:
-            df_copy[col] = df_copy[col].fillna('')
-    
-    # 최종 데이터 프레임에 필요한 열만 선택 (요청인자.md의 출력 항목 순서에 맞게)
-    final_columns = ['id', 'food_cd', 'group_name', 'food_name', 'research_year', 'maker_name', 'ref_name', 
-                    'serving_size', 'calorie', 'carbohydrate', 'protein', 'province', 'sugars', 
-                    'salt', 'cholesterol', 'saturated_fatty_acids', 'trans_fat']
-    
-    # 순서대로 컬럼 정렬
-    for col in final_columns:
-        if col not in df_copy.columns:
-            print(f"Warning: Column '{col}' is missing from the final dataset and will contain empty values.")
-
-    # 컬럼 선택 및 정렬
-    final_df = pd.DataFrame()
-    for col in final_columns:
-        if col in df_copy.columns:
-            final_df[col] = df_copy[col]
-        else:
-            # 없는 컬럼은 빈 값으로 추가
-            final_df[col] = np.nan if col in numeric_columns else ""
-    
-    # ID 컬럼 처리 - 'id' 컬럼이 매핑되지 않은 경우 새로 생성
-    if 'NO' not in renamed_columns.keys():
-        print("Creating sequential ID column...")
-        final_df['id'] = range(1, len(final_df) + 1)
-    
-    # CSV 파일로 저장
-    print("Saving processed data to CSV file...")
-    output_path = Path(output_csv_path)
-    if output_path.parent.name:  # 부모 디렉토리가 있는지 확인
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-    
-    final_df.to_csv(output_csv_path, index=False, encoding='utf-8')
-    print(f"✓ Data processed and saved to {output_csv_path}")
-    print(f"✓ Total records: {len(final_df)}")
-    
-    # 데이터 요약 정보 출력
-    print("\n=== Data Summary ===")
-    print(f"Columns: {', '.join(final_columns)}")
-    
-    # 각 컬럼 데이터 타입 출력
-    print("\nColumn Data Types:")
-    for col in final_columns:
-        print(f"  - {col}: {final_df[col].dtype}")
-    
-    print("\n=== Sample Data (first 5 rows) ===")
-    pd.set_option('display.max_columns', None)  # 모든 컬럼 표시
-    pd.set_option('display.width', 120)  # 화면 너비 조정
-    print(final_df.head().to_string())
-    
-    # SQL 삽입용 SQL 파일 생성
-    print("\nGenerating SQL insert file...")
-    create_sql_insert_file(final_df, output_path.parent / "insert_food_data.sql")
-    
-    return final_df
+# 로깅 설정
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('import_data.log'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
 
 
-def create_sql_insert_file(df: pd.DataFrame, sql_file_path: Path):
-    """
-    DataFrame의 데이터로 SQL INSERT 문을 생성하여 파일로 저장합니다.
-    SQL Injection을 방지하기 위해 적절히 이스케이프된 실제 값을 사용합니다.
+class DataManager:
+    """식품 영양성분 데이터 관리 클래스"""
     
-    Args:
-        df: 데이터프레임
-        sql_file_path: SQL 파일 저장 경로
-    """
-    print(f"Creating SQL insert file at {sql_file_path}...")
-    
-    # 테이블 생성 SQL
-    create_table_sql = """
-            CREATE TABLE IF NOT EXISTS foods (
-                    id INTEGER PRIMARY KEY,
-                    food_cd TEXT,
-                    group_name TEXT,
-                    food_name TEXT,
-                    research_year TEXT,
-                    maker_name TEXT,
-                    ref_name TEXT,
-                    serving_size REAL,
-                    calorie REAL,
-                    carbohydrate REAL,
-                    protein REAL,
-                    province REAL,
-                    sugars REAL,
-                    salt REAL,
-                    cholesterol REAL,
-                    saturated_fatty_acids REAL,
-                    trans_fat REAL
-            );
-        """
-    
-    # INSERT 문 생성 - SQL Injection 방지를 위한 적절한 이스케이프 처리
-    with open(sql_file_path, 'w', encoding='utf-8') as f:
-        f.write(create_table_sql)
-        
-        # 트랜잭션 시작
-        f.write("BEGIN TRANSACTION;\n\n")
-        
-        # 컬럼 목록 한 번만 정의
-        columns = ", ".join(df.columns)
-        
-        # 배치 단위로 처리 (SQLite의 기본 제한은 999개 변수)
-        batch_size = 500  # 더 큰 배치 크기 사용
-        total_rows = len(df)
-        rows_processed = 0
-        
-        for i in range(0, total_rows, batch_size):
-            batch_df = df.iloc[i:min(i+batch_size, total_rows)]
-            batch_count = len(batch_df)
+    def __init__(self, base_dir: Path = None):
+        if base_dir is None:
+            base_dir = Path(__file__).parent
             
-            # 배치 정보 추가 (VALUES 키워드 전에)
-            f.write(f"\n-- Batch {i//batch_size + 1}: Inserting {batch_count} records\n")
-            
-            # 각 배치의 첫 번째 레코드에만 INSERT 문 추가
-            if i == 0:
-                f.write(f"INSERT INTO foods ({columns}) VALUES\n")
-            
-            # 배치 내 각 행 처리
-            for idx, (_, row) in enumerate(batch_df.iterrows()):
-                # 각 값을 타입에 맞게 적절히 이스케이프 처리
-                safe_values = []
-                for col, val in zip(df.columns, row):
-                    if pd.isna(val):  # NULL 처리
-                        safe_values.append("NULL")
-                    elif col in ['id', 'serving_size'] or col.endswith(('calorie', 'carbohydrate', 'protein', 'province', 
-                                                                'sugars', 'salt', 'cholesterol', 
-                                                                'saturated_fatty_acids', 'trans_fat')):
-                        # 숫자형 데이터
-                        safe_values.append(str(val))
-                    else:
-                        # 문자열 데이터 - 작은따옴표 이스케이프
-                        escaped_val = str(val).replace("'", "''")
-                        safe_values.append(f"'{escaped_val}'")
-                
-                # VALUES 부분만 작성
-                values_str = ", ".join(safe_values)
-                rows_processed += 1
-                
-                # 마지막 행이 아니면 콤마 추가, 마지막 행이면 세미콜론 추가
-                if rows_processed < total_rows:
-                    f.write(f"({values_str}),\n")
-                else:
-                    f.write(f"({values_str});\n")
-                
-            f.write("\n")  # 배치 끝나면 줄바꿈 추가
-            
-            f.write("\n")
+        # 경로 설정
+        self.data_dir = base_dir / "data"
+        self.data_dir.mkdir(exist_ok=True)
         
-        # 트랜잭션 커밋
-        f.write("COMMIT;\n")
+        # food_data 디렉토리 생성
+        food_data_dir = self.data_dir / "food_data"
+        food_data_dir.mkdir(exist_ok=True)
+        
+        self.excel_path = self.data_dir / "food_data/통합 식품영양성분DB_음식_20230715.xlsx"
+        self.csv_path = self.data_dir / "food_data/processed_food_data.csv"
+        self.db_path = self.data_dir / "food_nutrition.db"
+        self.sql_schema_path = self.data_dir / "table_schema.sql"
     
-    print(f"SQL insert file created successfully at {sql_file_path}")
-
-
-def save_to_sqlite(df: pd.DataFrame, db_path: Path | str) -> bool:
-    """
-    DataFrame의 데이터를 SQLite 데이터베이스에 저장합니다.
-    SQL Injection 방지를 위해 파라미터화된 쿼리를 사용합니다.
-    
-    Args:
-        df: 데이터프레임
-        db_path: SQLite 데이터베이스 파일 경로
-        
-    Returns:
-        bool: 저장 성공 여부
-    """
-    conn = None
-    try:
-        print(f"Saving data to SQLite database at {db_path}...")
-        # SQLite 연결
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-        
-        # 테이블 생성
-        create_table_sql = """
-        CREATE TABLE IF NOT EXISTS foods (
-            id INTEGER PRIMARY KEY,
-            food_cd TEXT,
-            group_name TEXT,
-            food_name TEXT,
-            research_year TEXT,
-            maker_name TEXT,
-            ref_name TEXT,
-            serving_size REAL,
-            calorie REAL,
-            carbohydrate REAL,
-            protein REAL,
-            province REAL,
-            sugars REAL,
-            salt REAL,
-            cholesterol REAL,
-            saturated_fatty_acids REAL,
-            trans_fat REAL
-        );
-        """
-        cursor.execute(create_table_sql)
-        
-        # 기존 데이터 삭제 (옵션)
-        cursor.execute("DELETE FROM foods")
-        
-        # 변경사항 먼저 저장
-        conn.commit()
-        
-        # INSERT 쿼리 준비 및 실행
-        columns = ", ".join(df.columns)
-        placeholders = ", ".join(["?" for _ in range(len(df.columns))])
-        insert_sql = f"INSERT INTO foods ({columns}) VALUES ({placeholders})"
-        
-        # 파라미터 바인딩을 사용한 데이터 삽입 (일괄 작업)
-        batch_size = 500  # SQLite 권장 일괄 크기
-        total_rows = len(df)
-        
-        for i in range(0, total_rows, batch_size):
-            # 트랜잭션 시작
-            conn.execute("BEGIN TRANSACTION")
-            
-            # 배치 처리
-            batch_end = min(i + batch_size, total_rows)
-            print(f"Processing records {i+1} to {batch_end}...")
-            
-            batch_data = [tuple(row) for row in df.iloc[i:batch_end].values]
-            cursor.executemany(insert_sql, batch_data)
-            
-            # 트랜잭션 커밋
-            conn.commit()
-        
-        # 연결 종료
-        conn.close()
-        conn = None
-        
-        print(f"✓ Successfully inserted {total_rows} records into SQLite database")
-        return True
-        
-    except Exception as e:
-        print(f"Error saving to SQLite database: {e}")
-        # 연결이 있으면 롤백
-        if conn:
-            try:
-                conn.rollback()
-            except sqlite3.Error as rollback_error:
-                print(f"Error during rollback: {rollback_error}")
-            finally:
-                conn.close()
-        return False
-
-
-def load_from_csv(csv_path: Path | str) -> pd.DataFrame | None:
-    """
-    CSV 파일에서 데이터를 읽어 DataFrame으로 반환합니다.
-    
-    Args:
-        csv_path: CSV 파일 경로
-        
-    Returns:
-        DataFrame 또는 None (오류 발생 시)
-    """
-    try:
-        print(f"Loading data from CSV file {csv_path}...")
-        df = pd.read_csv(csv_path)
-        print(f"✓ Successfully loaded {len(df)} records from CSV")
-        return df
-    except Exception as e:
-        print(f"Error reading CSV file: {e}")
-        return None
-
-
-def get_sql_hash(sql_path: Path) -> str:
-    """
-    SQL 파일의 해시값을 계산합니다.
-    
-    Args:
-        sql_path: SQL 파일 경로
-        
-    Returns:
-        str: SQL 파일의 SHA-256 해시값
-    """
-    import hashlib
-    try:
-        with open(sql_path, 'rb') as f:
-            # 파일 내용으로 해시속성 계산 - 파일 변경을 확실히 감지하기 위해
-            file_hash = hashlib.sha256(f.read()).hexdigest()
+    def get_csv_hash(self) -> str:
+        try:
+            with open(self.csv_path, 'rb') as f:
+                file_hash = hashlib.md5(f.read()).hexdigest()
             return file_hash
-    except Exception as e:
-        print(f"Error calculating SQL file hash: {e}")
-        return ""
-
-
-def check_db_status(db_path: Path, sql_path: Path) -> tuple[bool, bool]:
-    """
-    데이터베이스와 SQL 파일의 상태를 확인합니다.
-
-    Returns:
-        tuple: (db_initialized, sql_changed)
-    """
-    db_initialized = False
-    sql_changed = False
-
-    # 1. SQL 파일 존재 여부
-    if not sql_path.exists():
-        print(f"[ERROR] SQL file not found at {sql_path}")
-        return db_initialized, sql_changed
-
-    # 2. DB 파일 존재 여부
-    if not db_path.exists():
-        print(f"[INFO] DB not found at {db_path}")
-        return db_initialized, sql_changed
-
-    # 3. SQL 해시 계산
-    current_sql_hash = get_sql_hash(sql_path)
-    if not current_sql_hash:
-        print("[ERROR] Failed to compute SQL hash. Assuming SQL changed.")
-        sql_changed = True
-
-    try:
-        conn = sqlite3.connect(db_path)
+        except Exception as e:
+            logger.error(f"CSV 해시값 계산 중 오류: {e}")
+            return ""
+    
+    def process_excel_to_csv(self) -> bool:
+        """Excel 파일 처리하여 CSV로 변환"""
+        logger.info(f"Excel 파일 처리 시작: {self.excel_path}")
+        
+        # Excel 파일 읽기
+        df = pd.read_excel(self.excel_path)
+        logger.info(f"Excel 파일 로드: {len(df)} 행")
+        
+        # CSV 저장
+        df.to_csv(self.csv_path, index=False, encoding='utf-8')
+        logger.info(f"CSV 파일 저장 완료: {self.csv_path}")
+        
+        return True
+    
+    def check_db_status(self) -> tuple[bool, bool]:
+        """DB 상태 및 CSV 변경 여부 확인"""
+        db_initialized = False
+        csv_changed = False
+        
+        # 파일 존재 확인
+        if not self.csv_path.exists():
+            logger.error(f"CSV 파일이 없습니다: {self.csv_path}")
+            return db_initialized, csv_changed
+        
+        if not self.db_path.exists():
+            logger.info(f"DB 파일이 없습니다: {self.db_path}")
+            return db_initialized, csv_changed
+        
+        # 현재 CSV 해시값
+        current_csv_hash = self.get_csv_hash()
+        
+        conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-
-        # 테이블 존재 확인
+        
+        # 메타 테이블 확인
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS meta (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            )
+        """)
+        
+        # foods 테이블 확인
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='foods'")
         if cursor.fetchone():
-            print("[INFO] 'foods' table exists.")
-
-            # 데이터 개수 확인
+            # 데이터 존재 확인
             cursor.execute("SELECT COUNT(*) FROM foods")
             count = cursor.fetchone()[0]
             if count > 0:
                 db_initialized = True
-                print(f"[INFO] Database has {count} records.")
-            else:
-                print("[INFO] 'foods' table is empty.")
-        else:
-            print("[WARN] 'foods' table does not exist.")
-            return db_initialized, True
-
-        # 메타 테이블과 해시 비교
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='meta'")
-        if cursor.fetchone():
-            cursor.execute("SELECT value FROM meta WHERE key = 'sql_hash' LIMIT 1")
-            result = cursor.fetchone()
-            if result:
-                stored_hash = result[0]
-                print(f"[DEBUG] Stored hash:  {stored_hash}")
-                print(f"[DEBUG] Current hash: {current_sql_hash}")
-                if current_sql_hash != stored_hash:
-                    print("[INFO] SQL file has changed.")
-                    sql_changed = True
-                else:
-                    print("[INFO] SQL file unchanged.")
-            else:
-                print("[WARN] No stored hash found. Assuming change.")
-                sql_changed = True
-        else:
-            print("[WARN] 'meta' table not found. Assuming SQL has changed.")
-            sql_changed = True
-
+                logger.info(f"데이터베이스에 {count}개의 레코드가 있습니다.")
+            
+            # 저장된 해시값 확인
+            cursor.execute("SELECT value FROM meta WHERE key='csv_hash'")
+            row = cursor.fetchone()
+            if row:
+                stored_hash = row[0]
+                if current_csv_hash and stored_hash != current_csv_hash:
+                    csv_changed = True
+                    logger.info("CSV 파일이 변경되었습니다. 데이터 갱신이 필요합니다.")
+        
         conn.close()
-    except Exception as e:
-        print(f"[ERROR] Failed to check DB status: {e}")
-        sql_changed = True
-
-    return db_initialized, sql_changed
-
-def create_meta_table(conn):
-    """
-    메타데이터 테이블을 생성합니다.
+        
+        return db_initialized, csv_changed
     
-    Args:
-        conn: SQLite 데이터베이스 연결 객체
-    """
-    try:
+    def update_database(self) -> bool:
+        """CSV 데이터로 데이터베이스 갱신"""
+        # CSV 파일 로드
+        logger.info(f"CSV 파일 로드: {self.csv_path}")
+        df = pd.read_csv(self.csv_path)
+        logger.info(f"총 {len(df)} 개의 레코드 로드됨")
+        
+        # DB 연결
+        conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        cursor.execute("""
-        CREATE TABLE IF NOT EXISTS meta (
-            key TEXT PRIMARY KEY,
-            value TEXT NOT NULL
-        )
-        """)
-        conn.commit()
-    except sqlite3.Error as e:
-        print(f"Error creating meta table: {e}")
-        conn.rollback()
-
-
-def update_meta_info(db_path: Path, sql_path: Path) -> None:
-    """
-    데이터베이스 메타정보를 업데이트합니다.
-    
-    Args:
-        db_path: 데이터베이스 파일 경로
-        sql_path: SQL 파일 경로
-    """
-    import time
-    conn = None
-    
-    try:
-        conn = sqlite3.connect(db_path)
-        create_meta_table(conn)
-        cursor = conn.cursor()
-        current_time = time.time()
         
-        # 현재 SQL 해시값 계산
-        sql_hash = get_sql_hash(sql_path)
+        # SQL 스키마 실행 (테이블 정의)
+        logger.info(f"테이블 스키마 적용: {self.sql_schema_path}")
+        with open(self.sql_schema_path, 'r', encoding='utf-8') as f:
+            schema_sql = f.read()
+            cursor.executescript(schema_sql)
         
-        # 메타데이터 저장/갱신
-        updates = [
-            ('last_update_time', str(current_time)),
-            ('sql_hash', sql_hash)
-        ]
+        # 기존 데이터 삭제
+        cursor.execute("DELETE FROM foods")
+        logger.info("기존 데이터 삭제 완료")
         
-        for key, value in updates:
-            cursor.execute("""
-            INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)
-            """, (key, value))
+        # CSV 데이터 삽입 (pandas to_sql 사용 - SQL Injection 방지)
+        logger.info("CSV 데이터 DB에 삽입 시작")
+        df.to_sql('foods', conn, if_exists='append', index=False)
+        
+        # 메타 정보 업데이트
+        csv_hash = self.get_csv_hash()
+        timestamp = datetime.now().isoformat()
+        
+        cursor.execute("INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)", 
+                     ('csv_hash', csv_hash))
+        cursor.execute("INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)", 
+                     ('last_updated', timestamp))
         
         conn.commit()
-        print(f"Updated database metadata:")
-        print(f"  - Timestamp: {current_time}")
-        print(f"  - SQL hash: {sql_hash[:8]}...")
+        conn.close()
         
-    except sqlite3.Error as e:
-        print(f"Error updating meta info: {e}")
-        if conn and conn.in_transaction:
-            conn.rollback()
-    finally:
-        if conn:
-            conn.close()
+        logger.info(f"데이터베이스 갱신 완료: {len(df)} 레코드, 타임스탬프: {timestamp}")
+        logger.info(f"CSV 해시: {csv_hash}")
+        return True
+    
+    def run(self):
+        """데이터 임포트 프로세스 실행"""
+        # 1. CSV 파일이 없으면 Excel -> CSV 변환
+        if not self.csv_path.exists():
+            logger.info("CSV 파일이 없습니다. Excel 파일에서 변환합니다.")
+            self.process_excel_to_csv()
+        
+        # 2. DB 상태 확인
+        db_initialized, csv_changed = self.check_db_status()
+        
+        # 3. DB 초기화 또는 갱신 필요 여부 판단
+        if not db_initialized or csv_changed:
+            action = "초기화" if not db_initialized else "갱신"
+            logger.info(f"데이터베이스 {action}가 필요합니다.")
+            if self.update_database():
+                logger.info(f"데이터베이스 {action}가 완료되었습니다.")
+        else:
+            logger.info("데이터베이스가 이미 초기화되어 있고 CSV도 변경되지 않았습니다. 아무 작업도 수행하지 않습니다.")
 
 
 def main():
-    # 파일 경로 설정
-    data_dir = Path(__file__).parent / "data"
-    
-    import_path = data_dir / "통합 식품영양성분DB_음식_20230715.xlsx"
-    csv_path = data_dir / "processed_food_data.csv"
-    db_path = data_dir / "food_nutrition.db"
-    sql_path = data_dir / "insert_food_data.sql"
-    
-    # 데이터베이스와 SQL 파일의 상태 확인
-    db_initialized, sql_changed = check_db_status(db_path, sql_path)
-    
-    # 데이터베이스가 초기화되어 있고 SQL 파일이 변경되지 않았으면 처리 건너뛰기
-    if db_initialized and not sql_changed:
-        print("Database already initialized and SQL file unchanged. Skipping data import.")
-        print("\n데이터 처리가 이미 완료되었습니다.")
-        print(f"1. CSV 파일: {csv_path}")
-        print(f"2. SQL 파일: {sql_path}")
-        print(f"3. SQLite DB: {db_path}")
-        return
-    
-    # 초기화되었지만 SQL 파일이 변경된 경우 메시지 출력
-    if db_initialized and sql_changed:
-        print("SQL file has changed since last database update. Applying changes...")
-    
-    # 최초 실행 또는 SQL 변경 감지 시 데이터 처리 수행
-    
-    # 엑셀 파일 처리 및 CSV 생성 (아직 없는 경우만)
-    if not csv_path.exists():
-        print("Processing Excel file...")
-        process_food_data(import_path, csv_path)
-    
-    # CSV 파일 로드
-    df = load_from_csv(csv_path)
-    if df is None:
-        print("Failed to load CSV data. Exiting.")
-        return
-    
-    # SQL 파일 생성 (이미 있더라도 다시 생성)
-    if sql_changed or not sql_path.exists():
-        print("Creating SQL insert file...")
-        create_sql_insert_file(df, sql_path)
-    
-    # SQLite DB에 데이터 저장
-    success = save_to_sqlite(df, db_path)
-    
-    # 성공적으로 저장되었으면 메타데이터 업데이트
-    if success:
-        update_meta_info(db_path, sql_path)
-    
-    status = "업데이트" if db_initialized else "초기화"
-    print(f"\n데이터 {status}가 완료되었습니다.")
-    print(f"1. CSV 파일: {csv_path}")
-    print(f"2. SQL 파일: {sql_path}")
-    print(f"3. SQLite DB: {db_path}")
+    """메인 함수"""
+    manager = DataManager()
+    manager.run()
 
 
 if __name__ == "__main__":
