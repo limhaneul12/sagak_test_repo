@@ -22,8 +22,8 @@
 
 ```
 app/tests/
-├── test_docs.md           # 테스트 문서
-└── test_food_api.py       # API 엔드포인트 통합 테스트
+├── README.md           # 테스트 문서 (현재 이 파일)
+└── test_food_api.py    # API 엔드포인트 통합 테스트
 ```
 
 ## 테스트 픽스처
