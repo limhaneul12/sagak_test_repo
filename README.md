@@ -174,3 +174,5 @@ sagak_test_repo/
 - 적절한 HTTP 상태 코드 사용
 - 파라미터 검증 및 에러 처리
 
+상세한 API 설계 원칙과 가이드는 [REST_API_DESIGN.md](./REST_API_DESIGN.md) 문서를 참고하세요. 이 문서에는 API 설계 철학, 엔드포인트 구조, 요청/응답 형식 및 실제 사용 예제가 포함되어 있습니다.
+
