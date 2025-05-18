@@ -1,9 +1,8 @@
-FROM python:3.12-slim-bookworm
+FROM python:3.12-alpine
 
 # 필수 패키지 설치
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache curl gcc musl-dev linux-headers
+
 
 # Poetry 설치
 RUN curl -sSL https://install.python-poetry.org | python3 -

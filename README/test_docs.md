@@ -113,7 +113,7 @@ SQLite 직접 연결 및 테이블 구조를 테스트합니다.
 def test_sqlite_direct_connection():
     """SQLite 직접 연결 테스트"""
     # 직접 SQLite 연결 테스트
-    conn = sqlite3.connect("/Users/imhaneul/Documents/sagak_test_repo/data/food_nutrition.db")
+    conn = sqlite3.connect("sagak_test_repo/data/food_nutrition.db")
     try:
         # 테이블 구조 확인
         cursor = conn.cursor()

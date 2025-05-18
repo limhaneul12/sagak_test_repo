@@ -25,7 +25,7 @@
 
 ### 코드 구조
 
-프로젝트는 다음과 같은 계층 구조로 설계되었습니다:
+프로젝트는 다음과 같은 구조로 설계되었습니다:
 
 ```
 app/
@@ -38,24 +38,6 @@ app/
 └── tests/          # 자동화 테스트
 ``` 
 
-### 주요 개선사항
-
-1. **의존성 주입 패턴 적용**
-   - `app/services/dependencies.py` 파일을 통해 FoodService의 의존성 주입
-   - API 엔드포인트에서 서비스 레이어 직접 생성 대신 DI 사용
-
-2. **SQLAlchemy 최신 스타일 적용**
-   - `declarative_base()` 대신 `DeclarativeBase` 클래스 상속 방식 사용
-   - SQLAlchemy 2.0 표준에 맞춘 비동기 세션 관리
-
-3. **파이썬 3.12 타입 힌트 현대화**
-   - 최신 Python 타입 힌트 문법 사용 (예: `list[str]` 대신 `List[str]`)
-   - `TypeAlias`를 활용한 명확한 타입 정의
-   - Union 타입에 파이프 연산자 사용 (예: `str | None`)
-
-4. **비동기 프로그래밍 적용**
-   - FastAPI와 SQLAlchemy 비동기 세션을 통한 효율적인 비동기 처리
-   - 동시성 처리를 통한 API 성능 향상
 
 ## 테스트 결과
 
@@ -71,10 +53,10 @@ app/
 2. **API 엔드포인트 테스트 (6개)**
    - 식품 생성 테스트 (POST)
    - 식품 조회 테스트 (GET)
-   - 존재하지 않는 식품 조회 테스트
-   - 식품 검색 테스트
    - 식품 정보 업데이트 테스트 (PUT)
    - 식품 삭제 테스트 (DELETE)
+   - 존재하지 않는 식품 조회 테스트
+   - 식품 검색 테스트
 
 ### 테스트 환경
 
@@ -97,21 +79,34 @@ cd sagak_test_repo
 
 ```bash
 poetry install
-poetry shell
+poetry env use python3.12  # Python 버전 지정 (선택 사항)
+poetry env activate       # 가상환경 활성화
+cat requirements.txt | xargs poetry add
 ```
 
 3. **데이터베이스 초기화 및 데이터 삽입**
+
+데이터베이스 초기화를 위해 다음 명령어를 실행합니다:
 
 ```bash
 python import_data.py
 ```
 
 이 명령어는 다음을 수행합니다:
-- Excel 파일(통합 식품영양성분DB_음식_20230715.xlsx)에서 데이터 로드
-- 데이터 정제 및 컬럼 매핑
-- 처리된 데이터를 CSV 파일로 저장 (data/processed_food_data.csv)
-- SQL 삽입 파일 생성 (data/insert_food_data.sql)
+- CSV 파일이 없는 경우 Excel 파일에서 데이터 로드 및 CSV 저장
+- CSV 파일 변경 여부 감지 (해시값 비교)
+- 필요한 경우에만 데이터베이스 갱신
 - SQLite 데이터베이스에 데이터 삽입 (data/food_nutrition.db)
+
+다음 옵션을 사용하여 실행할 수 있습니다:
+
+```bash
+# 초기화 로그 확인하기
+tail -f import_data.log
+
+# Excel → CSV 변환만 실행하기
+python -c "from import_data import DataManager; DataManager().process_excel_to_csv()"
+```
 
 4. **애플리케이션 실행**
 
@@ -128,8 +123,11 @@ python run_tests.py
 ### Docker 기준 실행
 
 ```bash
-docker-compose up -d
+docker-compose -up --build
 ```
+
+> **참고**: 최근 보안 취약점 해결을 위해 베이스 이미지를 `python:3.12-slim-bookworm`에서 
+`python:3.12-alpine`으로 변경했습니다
 
 ## 저장소 파일 구조
 
@@ -143,11 +141,12 @@ sagak_test_repo/
 │   ├── schemas/      # Pydantic 스키마
 │   ├── services/     # 비즈니스 로직
 │   └── tests/        # 테스트 코드
-├── data/              # 데이터 관련 파일
-│   ├── analysis_report/ # 데이터 분석 결과
-│   ├── food_nutrition.db # SQLite 데이터베이스
-│   ├── insert_food_data.sql # SQL 삽입 파일
-│   └── processed_food_data.csv # 처리된 CSV 데이터
+├── data/                # 데이터 관련 파일
+│   ├── food_data/         # 원본 및 처리된 데이터 파일
+│   │   ├── 통합 식품영양성분DB_음식_20230715.xlsx  # 원본 Excel 데이터
+│   │   └── processed_food_data.csv  # 처리된 CSV 데이터
+│   ├── food_nutrition.db   # SQLite 데이터베이스
+│   └── table_schema.sql    # 테이블 스키마 정의 SQL 파일
 ├── etc/               # 부가 문서
 ├── api_docs.md       # API 사용 가이드
 ├── import_data.py    # 데이터 삽입 스크립트
@@ -168,12 +167,6 @@ sagak_test_repo/
 - 총 7,683개의 식품 데이터 분석
 - 100개의 컬럼을 17개의 핵심 필드로 매핑
 
-### 주요 발견사항
-
-- 식품 영양성분 데이터는 여러 출처에서 제공됨
-- 식품 대분류 및 상세분류를 통한 체계적 구조화
-- 다양한 영양 정보 제공 (열량, 단백질, 탄수화물, 지방 등)
-
 ### API 설계 접근법
 
 - RESTful API 설계 원칙 준수
@@ -181,10 +174,3 @@ sagak_test_repo/
 - 적절한 HTTP 상태 코드 사용
 - 파라미터 검증 및 에러 처리
 
-## API 문서
-
-애플리케이션 실행 후 다음 URL에서 Swagger 문서 확인 가능:
-
-```
-http://localhost:8000/docs
-```
